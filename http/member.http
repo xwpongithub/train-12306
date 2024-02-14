@@ -1,0 +1,21 @@
+### gtr 快速生成get请求模板 ptrp 快速生成带参数的post请求模板
+GET http://localhost:8000/member/1
+Accept: application/json
+
+### 用户注册
+POST http://localhost:8000/member/member/register
+Content-Type: application/json
+
+{
+  "mobile":"13000000000"
+}
+
+###
+POST http://localhost:8000/member/member/send-code
+Content-Type: application/json
+
+{
+  "mobile":"13708790110"
+}
+
+###

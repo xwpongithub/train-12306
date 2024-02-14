@@ -1,0 +1,9 @@
+server:
+  servlet:
+    context-path: /business
+spring:
+  application:
+    name: train-ticket-business
+  profiles:
+    active: dev
+

@@ -1,0 +1,1 @@
+如果接口返回值为String，必须用JsonResult进行包裹
