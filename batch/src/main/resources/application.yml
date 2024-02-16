@@ -1,9 +1,3 @@
 server:
   servlet:
     context-path: /batch
-spring:
-  application:
-    name: train-ticket-batch
-  profiles:
-    active: dev
-
