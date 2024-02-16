@@ -3,27 +3,20 @@ server:
   servlet:
     context-path: /gateway
 spring:
-  application:
-    name: train-ticket-gateway
-  profiles:
-    active: dev
 # gateway输出请求日志要增加jvm参数 -Dreactor.netty.http.server.accessLogEnabled=true
   cloud:
     gateway:
       routes:
         - id: member
-#          uri: lb://train-ticket-member
-          uri: http://127.0.0.1:8001
+          uri: lb://member
           predicates:
             - Path=/member/**
         - id: business
-#          uri: lb://train-ticket-business
-          uri: http://127.0.0.1:8002
+          uri: lb://business
           predicates:
             - Path=/business/**
         - id: batch
-#          uri: lb://train-ticket-batch
-          uri: http://127.0.0.1:8003
+          uri: lb://batch
           predicates:
             - Path=/batch/**
       globalcors:
