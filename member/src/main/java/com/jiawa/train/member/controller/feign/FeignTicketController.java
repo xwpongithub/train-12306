@@ -19,7 +19,7 @@ public class FeignTicketController {
 
     @PostMapping("/save")
     @IgnoreResponseSerializable
-    public void save(@Valid @RequestBody MemberTicketReq req) {
+    public void save(@Valid @RequestBody MemberTicketReq req) throws Exception {
         ticketService.save(req);
     }
 

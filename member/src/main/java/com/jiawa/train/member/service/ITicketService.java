@@ -8,7 +8,7 @@ import com.jiawa.train.member.resp.TicketQueryResp;
 public interface ITicketService {
 
 
-    void save(MemberTicketReq req);
+    void save(MemberTicketReq req) throws Exception;
 
     PageResp<TicketQueryResp> queryList(TicketQueryReq req);
 

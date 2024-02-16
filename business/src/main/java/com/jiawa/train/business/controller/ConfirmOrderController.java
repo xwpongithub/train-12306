@@ -17,7 +17,7 @@ public class ConfirmOrderController {
   private final IConfirmOrderService confirmOrderService;
 
   @PostMapping("do")
-  public void doConfirmOrder(@Valid @RequestBody ConfirmOrderDoReq req) {
+  public void doConfirmOrder(@Valid @RequestBody ConfirmOrderDoReq req) throws Exception {
       confirmOrderService.doConfirmOrder(req);
   }
 

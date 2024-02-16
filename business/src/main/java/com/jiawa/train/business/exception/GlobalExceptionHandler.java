@@ -1,17 +1,18 @@
 package com.jiawa.train.business.exception;
 
+import cn.hutool.core.util.StrUtil;
 import com.jiawa.train.common.JsonResult;
 import com.jiawa.train.common.exception.BusinessException;
 import com.jiawa.train.common.toolkits.LogUtil;
+import io.seata.core.context.RootContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.servlet.NoHandlerFoundException;
 
-@ControllerAdvice()
+@ControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
@@ -51,22 +52,17 @@ public class GlobalExceptionHandler {
 //        }
 //        return JsonResult.error(nle.getMessage())
 //                .setCode("E"+nle.getCode());
-//    }  @ExceptionHandler(ResponseStatusException.class)
-
-    @ExceptionHandler(NoHandlerFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    @ResponseBody
-    public JsonResult handleNoHandlerFoundException(NoHandlerFoundException e) {
-        LogUtil.error(e);
-        return JsonResult
-                .error(e.getMessage())
-                .setCode(HttpStatus.NOT_FOUND.value());
-    }
+//    }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ResponseBody
-    public JsonResult handleException(Exception e) {
+    public JsonResult handleException(Exception e) throws Exception {
+        LogUtil.warn("【Seata全局事务 - handleException ID:{}】", RootContext.getXID());
+        // 如果是在一次全局事务里出异常了，就不要包装返回，将异常抛给调用房，让调用方能够回滚事务
+        if (StrUtil.isNotBlank(RootContext.getXID())){
+            throw e;
+        }
         LogUtil.error(e);
         return JsonResult
                 .error("系统异常，请联系管理员")

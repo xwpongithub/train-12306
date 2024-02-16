@@ -12,3 +12,26 @@ spring:
       discovery:
         server-addr: 127.0.0.1:8848
         namespace: train
+seata:
+  tx-service-group: group-train
+  registry:
+    type: nacos
+    nacos:
+      namespace: train
+      server-addr: 127.0.0.1:8848
+      group: SEATA_GROUP
+  #  config:
+#    type: nacos
+#    nacos:
+#      namespace: train
+#      data-id: seataServer.properties
+#      group: SEATA_GROUP
+#      server-addr: 127.0.0.1:8848
+  # 有了nacos后就不需要进行下面的配置
+  service:
+    vgroup-mapping:
+      group-train: default
+    grouplist:
+      default: 127.0.0.1:8091
+  enabled: on
+
