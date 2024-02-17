@@ -11,6 +11,7 @@ mybatis-plus:
     use-column-label: on
     # 当查询数据为空时字段返回为null，不设置这个字段为true的话查询的数据为null时，字段将被隐藏
     call-setters-on-nulls: on
+    local-cache-scope: statement
   global-config:
     db-config:
       logic-delete-value: -1

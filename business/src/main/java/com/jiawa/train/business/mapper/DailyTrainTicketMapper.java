@@ -15,16 +15,16 @@ public interface DailyTrainTicketMapper extends BaseMapper<DailyTrainTicket> {
       <script>
       update public.daily_train_ticket
       <set>
-        <if test="seatType eq '1'">
+        <if test='seatType eq "1"'>
           ydz = ydz - 1
         </if>
-        <if test="seatType eq '2'">
+        <if test='seatType eq "2"'>
           edz = edz - 1
         </if>
-        <if test="seatType eq '3'">
+        <if test='seatType eq "3"'>
           rw = rw - 1
         </if>
-        <if test="seatType eq '4'">
+        <if test='seatType eq "4"'>
           yw = yw - 1
         </if>
       </set>
