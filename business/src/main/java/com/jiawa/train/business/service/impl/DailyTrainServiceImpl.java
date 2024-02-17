@@ -5,12 +5,13 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.EnumUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.db.Entity;
-import cn.hutool.db.Session;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.*;
 import com.jiawa.train.business.enums.SeatTypeEnum;
 import com.jiawa.train.business.enums.TrainTypeEnum;
-import com.jiawa.train.business.mapper.DailyTrainMapper;
+import com.jiawa.train.business.mapper.*;
 import com.jiawa.train.business.req.DailyTrainQueryReq;
 import com.jiawa.train.business.req.DailyTrainSaveReq;
 import com.jiawa.train.business.resp.DailyTrainQueryResp;
@@ -20,12 +21,11 @@ import com.jiawa.train.common.toolkits.LogUtil;
 import com.jiawa.train.common.toolkits.SnowflakeUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.SQLException;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Objects;
 
 @Service
@@ -41,64 +41,81 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
         if (Objects.isNull(dailyTrain.getId())) {
             dailyTrain.setCreateTime(now);
             dailyTrain.setUpdateTime(now);
-            dailyTrainMapper.insertSelective(dailyTrain);
+            dailyTrainMapper.insert(dailyTrain);
         } else {
             dailyTrain.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id",req.getId());
-            dailyTrainMapper.updateSelective(dailyTrain,q);
+            dailyTrainMapper.updateById(dailyTrain);
         }
     }
 
     @Override
     public PageResp<DailyTrainQueryResp> queryList(DailyTrainQueryReq req) {
-        var trainList = dailyTrainMapper.page(req.getPage(), req.getSize(),req.getDate(),req.getCode());
+        var p = new Page<DailyTrain>(req.getPage(),req.getSize());
+        var q = new LambdaQueryWrapper<DailyTrain>();
+        q
+                .select(
+                        DailyTrain::getId,
+                        DailyTrain::getCode,
+                        DailyTrain::getType,
+                        DailyTrain::getStart,
+                        DailyTrain::getStartPinyin,
+                        DailyTrain::getStartTime,
+                        DailyTrain::getEndVal,
+                        DailyTrain::getEndPinyin,
+                        DailyTrain::getEndTime,
+                        DailyTrain::getCreateTime,
+                        DailyTrain::getUpdateTime
+                )
+                .eq(Objects.nonNull(req.getDate()),DailyTrain::getDate,req.getDate())
+                .eq(Objects.nonNull(req.getCode()),DailyTrain::getCode,req.getCode())
+                .orderByDesc(DailyTrain::getDate)
+                .orderByAsc(DailyTrain::getCode);
+
+        var dbPage = dailyTrainMapper.selectPage(p,q);
         var resp = new PageResp<DailyTrainQueryResp>();
-        var list = BeanUtil.copyToList(trainList , DailyTrainQueryResp.class);
-        resp.setTotal(trainList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , DailyTrainQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        dailyTrainMapper.deleteByPrimaryKey(id);
+        dailyTrainMapper.deleteById(id);
     }
 
     private final ITrainService trainService;
     private final ITrainStationService trainStationService;
     private final ITrainCarriageService trainCarriageService;
     private final ITrainSeatService trainSeatService;
-
     private final IDailyTrainSeatService dailyTrainSeatService;
+
+    private final DailyTrainStationMapper dailyTrainStationMapper;
+    private final DailyTrainCarriageMapper dailyTrainCarriageMapper;
+    private final DailyTrainSeatMapper dailyTrainSeatMapper;
+    private final DailyTrainTicketMapper dailyTrainTicketMapper;
     /**
      * 生成每日车次数据
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void genDaily(Date date) {
         var trainList = trainService.selectAll();
         if (CollUtil.isEmpty(trainList)) {
             LogUtil.info("没有车次基础数据，任务结束");
             return;
         }
-        Session session = Session.create();
-        try {
-            session.beginTransaction();
-            for (Train train : trainList) {
-                genDailyTrainData(session,date, train);
-            }
-            session.commit();
-        } catch (SQLException e) {
-            session.quietRollback();
-            LogUtil.error(e);
+        for (Train train : trainList) {
+            genDailyTrainData(date, train);
         }
     }
 
-    private void genDailyTrainData(Session session, Date date, Train train) throws SQLException {
-        Entity delExample = Entity.create("public.daily_train");
-        delExample.set("date", date);
-        delExample.set("code", train.getCode());
-        session.del(delExample);
+    private void genDailyTrainData(Date date, Train train) {
+        var delQ = new LambdaQueryWrapper<DailyTrain>();
+        delQ
+//                    .eq(DailyTrainEntity::getDate, date)
+                .eq(DailyTrain::getCode, train.getCode());
+        dailyTrainMapper.delete(delQ);
 
         var now = DateUtil.date();
         var newDailyTrain = BeanUtil.copyProperties(train,DailyTrain.class);
@@ -106,28 +123,25 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
         newDailyTrain.setCreateTime(now);
         newDailyTrain.setUpdateTime(now);
         newDailyTrain.setDate(date);
-
-        Entity insertExample = Entity.create("public.daily_train");
-        var insertMaps = BeanUtil.beanToMap(newDailyTrain,true, true);
-        insertMaps.forEach(insertExample::set);
-        session.insert(insertExample);
+        dailyTrainMapper.insert(newDailyTrain);
 
         // 生成每日车站数据
-        genDailyTrainStationData(session, date,train.getCode());
+        genDailyTrainStationData(date,train.getCode());
         // 生成每日车厢数据
-        genDailyTrainCarriageData(session,date,train.getCode());
+        genDailyTrainCarriageData(date,train.getCode());
         // 生成每日座位数据
-        genDailyTrainSeatData(session, date,train.getCode());
+        genDailyTrainSeatData(date,train.getCode());
         // 生成每日车次对应的余票信息
-        genDailyTrainTicketData(session,date,train.getCode(),train.getType());
+        genDailyTrainTicketData(date,train.getCode(),train.getType());
     }
 
     // 根据车次查询经过的所有车站
-    private void genDailyTrainStationData(Session session, Date date,String trainCode) throws SQLException {
-        Entity delExample = Entity.create("public.daily_train_station");
-        delExample.set("date", date);
-        delExample.set("train_code", trainCode);
-        session.del(delExample);
+    private void genDailyTrainStationData(Date date,String trainCode) {
+        var delStationQ = Wrappers.<DailyTrainStation>lambdaQuery();
+        delStationQ
+                    .eq(DailyTrainStation::getDate,date)
+                .eq(DailyTrainStation::getTrainCode,trainCode);
+        dailyTrainStationMapper.delete(delStationQ);
 
         var trainStationList = trainStationService.selectByTrainCode(trainCode);
 
@@ -143,19 +157,16 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
             newDailyTrainStation.setCreateTime(now);
             newDailyTrainStation.setUpdateTime(now);
             newDailyTrainStation.setDate(date);
-
-            Entity insertExample = Entity.create("public.daily_train_station");
-            var insertMaps = BeanUtil.beanToMap(newDailyTrainStation,true, true);
-            insertMaps.forEach(insertExample::set);
-            session.insert(insertExample);
+            dailyTrainStationMapper.insert(newDailyTrainStation);
         }
     }
 
-    private void genDailyTrainCarriageData(Session session, Date date,String trainCode) throws SQLException {
-        Entity delExample = Entity.create("public.daily_train_carriage");
-        delExample.set("date", date);
-        delExample.set("train_code", trainCode);
-        session.del(delExample);
+    private void genDailyTrainCarriageData(Date date,String trainCode) {
+        var delCarriageQ = Wrappers.<DailyTrainCarriage>lambdaQuery();
+        delCarriageQ
+                    .eq(DailyTrainCarriage::getDate,date)
+                .eq(DailyTrainCarriage::getTrainCode,trainCode);
+        dailyTrainCarriageMapper.delete(delCarriageQ);
 
         var trainCarriageList = trainCarriageService.selectByTrainCode(trainCode);
         if (CollUtil.isEmpty(trainCarriageList)){
@@ -170,20 +181,17 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
             newDailyTrainCarriage .setCreateTime(now);
             newDailyTrainCarriage .setUpdateTime(now);
             newDailyTrainCarriage .setDate(date);
-
-            Entity insertExample = Entity.create("public.daily_train_carriage");
-            var insertMaps = BeanUtil.beanToMap(newDailyTrainCarriage ,true, true);
-            insertMaps.forEach(insertExample::set);
-            session.insert(insertExample);
+            dailyTrainCarriageMapper.insert(newDailyTrainCarriage);
         }
     }
 
 
-    private void genDailyTrainSeatData(Session session, Date date,String trainCode) throws SQLException {
-        Entity delExample = Entity.create("public.daily_train_seat");
-        delExample.set("date", date);
-        delExample.set("train_code", trainCode);
-        session.del(delExample);
+    private void genDailyTrainSeatData(Date date,String trainCode) {
+        var delSeatQ = Wrappers.<DailyTrainSeat>lambdaQuery();
+        delSeatQ
+                    .eq(DailyTrainSeat::getDate,date)
+                .eq(DailyTrainSeat::getTrainCode,trainCode);
+        dailyTrainSeatMapper.delete(delSeatQ);
 
         var stationList = trainStationService.selectByTrainCode(trainCode);
         String sell = StrUtil.fillBefore("", '0', stationList.size() - 1);
@@ -203,18 +211,17 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
             newDailyTrainSeat.setUpdateTime(now);
             newDailyTrainSeat.setDate(date);
             newDailyTrainSeat.setSell(sell);
-            Entity insertExample = Entity.create("public.daily_train_seat");
-            var insertMaps = BeanUtil.beanToMap(newDailyTrainSeat ,true, true);
-            insertMaps.forEach(insertExample::set);
-            session.insert(insertExample);
+            dailyTrainSeatMapper.insert(newDailyTrainSeat);
         }
     }
 
-    private void genDailyTrainTicketData(Session session, Date date,String trainCode,String type) throws SQLException {
-        Entity delExample = Entity.create("public.daily_train_ticket");
-        delExample.set("date", date);
-        delExample.set("train_code", trainCode);
-        session.del(delExample);
+    private void genDailyTrainTicketData(Date date,String trainCode,String type) {
+        // 删除某日某车次的余票信息
+        var delTicketQ = Wrappers.<DailyTrainTicket>lambdaQuery();
+        delTicketQ
+                    .eq(DailyTrainTicket::getDate,date)
+                .eq(DailyTrainTicket::getTrainCode,trainCode);
+        dailyTrainTicketMapper.delete(delTicketQ);
 
         // 查询车次途经的所有车站信息
 
@@ -285,10 +292,7 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
                 dailyTicket.setYw(ywCount);
                 dailyTicket.setYwPrice(ywPrice);
                 // End 2.初始化各种座位的余票信息
-                Entity insertExample = Entity.create("public.daily_train_ticket");
-                var insertMaps = BeanUtil.beanToMap(dailyTicket ,true, true);
-                insertMaps.forEach(insertExample::set);
-                session.insert(insertExample);
+                dailyTrainTicketMapper.insert(dailyTicket);
             }
         }
     }

@@ -2,6 +2,8 @@ package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.Train;
 import com.jiawa.train.business.mapper.TrainMapper;
 import com.jiawa.train.business.req.TrainQueryReq;
@@ -14,7 +16,6 @@ import com.jiawa.train.common.resp.PageResp;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,28 +37,29 @@ public class TrainServiceImpl implements ITrainService {
             }
             train.setCreateTime(now);
             train.setUpdateTime(now);
-            trainMapper.insertSelective(train);
+            trainMapper.insert(train);
         } else {
             train.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id", train.getId());
-            trainMapper.updateSelective(train,q);
+            trainMapper.updateById(train);
         }
     }
 
     @Override
     public PageResp<TrainQueryResp> queryList(TrainQueryReq req) {
-        var trainList = trainMapper.page(req.getPage(), req.getSize());
+        var q = Wrappers.<Train>lambdaQuery();
+        q.orderByAsc(Train::getCode);
+        var p = new Page<Train>(req.getPage(),req.getSize());
+        var dbPage = trainMapper.selectPage(p, q);
         var resp = new PageResp<TrainQueryResp>();
-        var list = BeanUtil.copyToList(trainList , TrainQueryResp.class);
-        resp.setTotal(trainList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , TrainQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        trainMapper.deleteByPrimaryKey(id);
+        trainMapper.deleteById(id);
     }
 
     @Override
@@ -70,12 +72,14 @@ public class TrainServiceImpl implements ITrainService {
 
     @Override
     public List<Train> selectAll() {
-        return trainMapper.selectByExample(null);
+        var q = Wrappers.<Train>lambdaQuery();
+        q.orderByAsc(Train::getCode);
+        return trainMapper.selectList(q);
     }
 
     private Train selectByUnique(String code) {
-        var q = new HashMap<String,Object>();
-        q.put("code",code);
+        var q = Wrappers.<Train>lambdaQuery();
+        q.eq(Train::getCode,code);
         return trainMapper.selectOne(q);
     }
 

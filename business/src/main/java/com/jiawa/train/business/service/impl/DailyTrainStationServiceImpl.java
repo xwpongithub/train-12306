@@ -2,6 +2,9 @@ package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.DailyTrainStation;
 import com.jiawa.train.business.mapper.DailyTrainStationMapper;
 import com.jiawa.train.business.req.DailyTrainStationQueryReq;
@@ -22,7 +25,6 @@ import java.util.Objects;
 public class DailyTrainStationServiceImpl implements IDailyTrainStationService {
 
     private final DailyTrainStationMapper dailyTrainStationMapper;
-//    private final TrainStationService trainStationService;
 
     @Override
     public void save(DailyTrainStationSaveReq req) {
@@ -31,28 +33,34 @@ public class DailyTrainStationServiceImpl implements IDailyTrainStationService {
         if (Objects.isNull(dailyTrainStation.getId())) {
             dailyTrainStation.setCreateTime(now);
             dailyTrainStation.setUpdateTime(now);
-            dailyTrainStationMapper.insertSelective(dailyTrainStation);
+            dailyTrainStationMapper.insert(dailyTrainStation);
         } else {
             dailyTrainStation.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id",req.getId());
-            dailyTrainStationMapper.updateSelective(dailyTrainStation,q);
+            dailyTrainStationMapper.updateById(dailyTrainStation);
         }
     }
 
     @Override
     public PageResp<DailyTrainStationQueryResp> queryList(DailyTrainStationQueryReq req) {
-        var trainList = dailyTrainStationMapper.page(req.getPage(), req.getSize(),req.getDate(),req.getTrainCode());
+        var q = Wrappers.<DailyTrainStation>lambdaQuery();
+        q.orderByDesc(DailyTrainStation::getDate)
+                .orderByAsc(DailyTrainStation::getTrainCode,DailyTrainStation::getIndex)
+                .eq(Objects.nonNull(req.getDate()),
+                        DailyTrainStation::getDate,req.getDate())
+                .eq(StrUtil.isNotBlank(req.getTrainCode()),
+                        DailyTrainStation::getTrainCode,req.getTrainCode());
+        var p = new Page<DailyTrainStation>(req.getPage(),req.getSize());
+        var trainPage = dailyTrainStationMapper.selectPage(p,q);
         var resp = new PageResp<DailyTrainStationQueryResp>();
-        var list = BeanUtil.copyToList(trainList , DailyTrainStationQueryResp.class);
-        resp.setTotal(trainList.getTotal());
+        var list = BeanUtil.copyToList(trainPage.getRecords() , DailyTrainStationQueryResp.class);
+        resp.setTotal((int)trainPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        dailyTrainStationMapper.deleteByPrimaryKey(id);
+        dailyTrainStationMapper.deleteById(id);
     }
 
 //    @Transactional(rollbackFor = Exception.class)
@@ -83,10 +91,10 @@ public class DailyTrainStationServiceImpl implements IDailyTrainStationService {
      */
     @Override
     public long countByTrainCode(Date date, String trainCode) {
-        var q = new HashMap<String,Object>();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        return dailyTrainStationMapper.countExample(q);
+        var q = Wrappers.<DailyTrainStation>lambdaQuery();
+        q.eq(DailyTrainStation::getDate,date)
+                .eq(DailyTrainStation::getTrainCode,trainCode);
+        return dailyTrainStationMapper.selectCount(q);
     }
 
     /**
@@ -94,10 +102,11 @@ public class DailyTrainStationServiceImpl implements IDailyTrainStationService {
      */
     @Override
     public List<DailyTrainStationQueryResp> queryByTrain(Date date, String trainCode) {
-        var q = new HashMap<String,Object>();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        var list = dailyTrainStationMapper.selectByExample(q);
+        var q = Wrappers.<DailyTrainStation>lambdaQuery();
+        q.orderByAsc(DailyTrainStation::getIndex)
+                .eq(DailyTrainStation::getDate,date)
+                .eq(DailyTrainStation::getTrainCode,trainCode);
+        var list = dailyTrainStationMapper.selectList(q);
         return BeanUtil.copyToList(list, DailyTrainStationQueryResp.class);
     }
 

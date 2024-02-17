@@ -1,5 +1,7 @@
 package com.jiawa.train.member.entity;
 
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,8 +11,10 @@ import java.util.Date;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@TableName(value="ticket",schema = "public")
 public class Ticket {
 
+    @TableId
     private Long id;
 
     private Long memberId;

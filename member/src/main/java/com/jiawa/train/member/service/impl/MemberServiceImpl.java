@@ -1,5 +1,6 @@
 package com.jiawa.train.member.service.impl;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.jiawa.train.common.exception.BusinessException;
 import com.jiawa.train.common.exception.BusinessExceptionEnum;
 import com.jiawa.train.common.resp.MemberLoginResp;
@@ -16,6 +17,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -25,25 +27,27 @@ public class MemberServiceImpl implements IMemberService {
 
     @Override
     public long register(MemberRegisterReq req) {
-        var conditions = new HashMap<String,Object>();
-        conditions.put("mobile",req.getMobile());
-        var memberCount = memberMapper.countExample(conditions);
-        if (memberCount>0){
+        var mobile = req.getMobile();
+        var mobileExistsQ = Wrappers.<Member>lambdaQuery();
+        mobileExistsQ.eq(Member::getMobile,mobile);
+        var mobileExists = memberMapper.exists(mobileExistsQ);
+        if (mobileExists) {
             throw new BusinessException(BusinessExceptionEnum.MEMBER_MOBILE_EXIST);
         }
-        var member = new Member();
-        member.setMobile(req.getMobile());
-        return memberMapper.insert(member);
+        var newMember = new Member();
+        newMember.setMobile(mobile);
+        memberMapper.insert(newMember);
+        return newMember.getId();
     }
 
 
     @Override
     public void sendCode(MemberSendCodeReq req) {
         var mobile = req.getMobile();
-        var conditions = new HashMap<String,Object>();
-        conditions.put("mobile", mobile);
-        var count = memberMapper.countExample(conditions);
-        if (count==0) {
+        var mobileExistsQ = Wrappers.<Member>lambdaQuery();
+        mobileExistsQ.eq(Member::getMobile,mobile);
+        var mobileExists = memberMapper.exists(mobileExistsQ);
+        if (!mobileExists) {
             // 手机号未注册则直接注册
             var newMember = new Member();
             newMember.setMobile(mobile);
@@ -61,10 +65,10 @@ public class MemberServiceImpl implements IMemberService {
     public MemberLoginResp login(MemberLoginReq req) {
         var mobile = req.getMobile();
         var code = req.getCode();
-        var queryMap = new HashMap<String,Object>();
-        queryMap.put("mobile",mobile);
-        var dbMember = memberMapper.selectOne(queryMap);
-        if (dbMember == null) {
+        var mobileExistsQ = Wrappers.<Member>lambdaQuery();
+        mobileExistsQ.eq(Member::getMobile,mobile);
+        var mobileExists = memberMapper.selectOne(mobileExistsQ);
+        if (Objects.isNull(mobileExists)) {
             throw new BusinessException(BusinessExceptionEnum.MEMBER_MOBILE_NOT_EXIST);
         }
         // 校验短信验证码
@@ -74,9 +78,9 @@ public class MemberServiceImpl implements IMemberService {
         var memberLoginResp = new MemberLoginResp();
         BeanUtils.copyProperties(req,memberLoginResp);
 
-        var token = JwtUtil.createToken(dbMember.getId(),mobile);
+        var token = JwtUtil.createToken(mobileExists.getId(),mobile);
         memberLoginResp.setToken(token);
-        memberLoginResp.setId(dbMember.getId());
+        memberLoginResp.setId(mobileExists.getId());
         return memberLoginResp;
     }
 

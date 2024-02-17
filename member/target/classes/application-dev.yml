@@ -1,19 +1,19 @@
 server:
   port: 8001
-#spring:
-#  datasource:
-#    url: jdbc:postgresql://127.0.0.1:5432/train_ticket_member?stringtype=unspecified&timezone=Asia/Shanghai
-#    username: postgres
-#    password: 123456
-#    driver-class-name: org.postgresql.Driver
-#    hikari:
-#      pool-name: train-ticket-member
-#      auto-commit: on
-#      connection-timeout: 30000
-#      max-lifetime: 600000
-#      idle-timeout: 300000
-#      connection-test-query: select 1
-#      validation-timeout: 1500
-#      minimum-idle: 2
-#      maximum-pool-size: 10
-#      schema: public
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/train_ticket_member?stringtype=unspecified&timezone=Asia/Shanghai
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: hikariMember
+      auto-commit: on
+      connection-timeout: 30000
+      max-lifetime: 600000
+      idle-timeout: 300000
+      connection-test-query: select 1
+      validation-timeout: 1500
+      minimum-idle: 2
+      maximum-pool-size: 10
+      schema: public
