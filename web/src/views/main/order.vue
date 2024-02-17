@@ -83,7 +83,7 @@
       <div v-if="chooseSeatType === 0" style="color: red;">
         您购买的车票不支持选座
         <div>12306规则：只有全部是一等座或全部是二等座才支持选座</div>
-        <div>12306规则：余票小于一定数量时，不允许选座（本项目以20为例）</div>
+        <div>12306规则：余票小于一定数量时，不允许选座（本项目以5为例）</div>
       </div>
       <div v-else style="text-align: center">
         <a-switch class="choose-seat-item" v-for="item in SEAT_COL_ARRAY" :key="item.code"
@@ -259,15 +259,15 @@ export default defineComponent({
           chooseSeatType.value = 0;
         }
 
-        // 余票小于20张时，不允许选座，否则选座成功率不高，影响出票
+        // 余票小于5张时，不允许选座，否则选座成功率不高，影响出票
         if (chooseSeatType.value !== 0) {
           for (let i = 0; i < seatTypes.length; i++) {
             let seatType = seatTypes[i];
             // 找到同类型座位
             if (ticketSeatTypeCodesSet[0] === seatType.code) {
-              // 判断余票，小于20张就不支持选座
-              if (seatType.count < 20) {
-                console.log("余票小于20张就不支持选座")
+              // 判断余票，小于5张就不支持选座
+              if (seatType.count < 5) {
+                console.log("余票小于5张就不支持选座")
                 chooseSeatType.value = 0;
                 break;
               }

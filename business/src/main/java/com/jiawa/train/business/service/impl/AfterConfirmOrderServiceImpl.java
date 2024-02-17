@@ -1,23 +1,24 @@
 package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.db.Entity;
-import cn.hutool.db.Session;
 import com.jiawa.train.business.entity.DailyTrainSeat;
 import com.jiawa.train.business.entity.DailyTrainTicket;
+import com.jiawa.train.business.enums.ConfirmOrderStatusEnum;
 import com.jiawa.train.business.feign.MemberFeign;
+import com.jiawa.train.business.mapper.ConfirmOrderMapper;
+import com.jiawa.train.business.mapper.DailyTrainSeatMapper;
+import com.jiawa.train.business.mapper.DailyTrainTicketMapper;
 import com.jiawa.train.business.req.ConfirmOrderTicketReq;
 import com.jiawa.train.business.service.IAfterConfirmOrderService;
 import com.jiawa.train.common.context.LoginMemberContext;
 import com.jiawa.train.common.req.MemberTicketReq;
 import com.jiawa.train.common.toolkits.LogUtil;
+import com.jiawa.train.business.entity.ConfirmOrder;
 import io.seata.core.context.RootContext;
 import io.seata.spring.annotation.GlobalTransactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.sql.SQLException;
 import java.util.List;
 
 @Service
@@ -26,6 +27,9 @@ public class AfterConfirmOrderServiceImpl implements IAfterConfirmOrderService {
 
 
     private final MemberFeign memberFeign;
+    private final DailyTrainTicketMapper dailyTrainTicketMapper;
+    private final DailyTrainSeatMapper dailyTrainSeatMapper;
+    private final ConfirmOrderMapper confirmOrderMapper;
 
     /**
      * 选中座位后事务处理：
@@ -40,19 +44,17 @@ public class AfterConfirmOrderServiceImpl implements IAfterConfirmOrderService {
             DailyTrainTicket dailyTrainTicket,
             List<DailyTrainSeat> finalSeatList,
             List<ConfirmOrderTicketReq> tickets,
-            Session session) throws SQLException {
+            ConfirmOrder confirmOrder) {
         LogUtil.info("【Seata全局事务ID - afterDoConfirm:{}】", RootContext.getXID());
         var now = DateUtil.date();
         for (var i = 0;i<finalSeatList.size();i++) {
             DailyTrainSeat seat = finalSeatList.get(i);
             //  1.座位表修改售卖情况sell
-            var updateConditions = Entity.create("public.daily_train_seat");
-            updateConditions.set("id", seat.getId());
-            Entity updateExample = Entity.create("public.daily_train_seat");
-            updateExample.set("sell", seat.getSell())
-                    .set("create_time", now)
-                    .set("update_time", now);
-            session.update(updateExample, updateConditions);
+            var seatForUpdate = new DailyTrainSeat();
+            seatForUpdate.setId(seat.getId());
+            seatForUpdate.setSell(seat.getSell());
+            seatForUpdate.setUpdateTime(now);
+            dailyTrainSeatMapper.updateById(seatForUpdate);
 
             /// 2.余票详情表修改余票；
             // 计算这个站卖出去后，影响了哪些站的余票库存
@@ -95,7 +97,11 @@ public class AfterConfirmOrderServiceImpl implements IAfterConfirmOrderService {
             }
             LogUtil.debug("影响到达站区间：{}-{}", minEndIndex, maxEndIndex);
 
-            updateCountSell(session, seat, minStartIndex, maxStartIndex, minEndIndex, maxEndIndex);
+            dailyTrainTicketMapper.updateCountBySell(
+                    seat.getDate(),
+                    seat.getTrainCode(),
+                    seat.getSeatType(),
+                    minStartIndex, maxStartIndex, minEndIndex, maxEndIndex);
 
             // 3.为会员增加购票记录(购票成功后调用member的接口)
             var memberTicketReq = new MemberTicketReq();
@@ -114,34 +120,16 @@ public class AfterConfirmOrderServiceImpl implements IAfterConfirmOrderService {
             memberTicketReq.setSeatType(seat.getSeatType());
             var saveJsonResult = memberFeign.save(memberTicketReq);
             LogUtil.debug("调用member接口，返回：{}",  saveJsonResult);
-        }
-    }
 
-    private void updateCountSell(Session session, DailyTrainSeat seat, int minStartIndex, int maxStartIndex, int minEndIndex, int maxEndIndex) throws SQLException {
-        var seatType = seat.getSeatType();
-        var sql = "update public.daily_train_ticket ";
-        if (StrUtil.equals(seatType, "1")) {
-            sql += "set ydz = ydz - 1";
+            // 4.更新确认订单表状态为S:成功
+            //// 如果对接支付，这里变更状态应该先变为处理中，等待支付接口返回成功后订单状态才能变为SUCCESS，这里因为不做支付接口就直接将订单状态变为SUCCESS
+            var confirmOrderForUpdate = new ConfirmOrder();
+            confirmOrderForUpdate.setId(confirmOrder.getId());
+            confirmOrderForUpdate.setUpdateTime(now);
+            confirmOrderForUpdate.setStatus(ConfirmOrderStatusEnum.SUCCESS.getCode());
+            confirmOrderMapper.updateById(confirmOrderForUpdate);
+
         }
-        if (StrUtil.equals(seatType, "2")) {
-            sql += "set edz = edz - 1";
-        }
-        if (StrUtil.equals(seatType, "3")) {
-            sql += "set rw = rw - 1";
-        }
-        if (StrUtil.equals(seatType, "4")) {
-            sql += "set yw = yw - 1 ";
-        }
-        sql += """
-               where
-                     date = ?
-                     and train_code = ?
-                     and start_index >= ?
-                     and start_index <= ?
-                     and end_index >= ?
-                     and end_index <= ?
-            """;
-        session.execute(sql, seat.getDate(), seat.getTrainCode(), minStartIndex, maxStartIndex, minEndIndex, maxEndIndex);
     }
 
 }

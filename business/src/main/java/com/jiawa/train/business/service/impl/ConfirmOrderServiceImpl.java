@@ -15,8 +15,6 @@ import com.jiawa.train.business.enums.ConfirmOrderStatusEnum;
 import com.jiawa.train.business.enums.SeatColEnum;
 import com.jiawa.train.business.enums.SeatTypeEnum;
 import com.jiawa.train.business.mapper.ConfirmOrderMapper;
-import com.jiawa.train.business.mapper.DailyTrainSeatMapper;
-import com.jiawa.train.business.mapper.DailyTrainTicketMapper;
 import com.jiawa.train.business.req.ConfirmOrderDoReq;
 import com.jiawa.train.business.req.ConfirmOrderQueryReq;
 import com.jiawa.train.business.req.ConfirmOrderTicketReq;
@@ -61,7 +59,7 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
 
     @Override
     @GlobalTransactional
-    public void doConfirmOrder(ConfirmOrderDoReq req) throws Exception{
+    public void doConfirmOrder(ConfirmOrderDoReq req) {
         var now = DateUtil.date();
         var date = req.getDate();
         var trainCode = req.getTrainCode();
@@ -157,7 +155,8 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             // 6.1.1 座位表修改售卖情况sell字段
             // 6.1.2 修改余票详情表的余票数量
             // 6.1.3 为会员增加购票记录
-            afterConfirmOrderService.afterDoConfirm(stockTickets, finalSeatList, buyingTickets,session);
+
+            afterConfirmOrderService.afterDoConfirm(stockTickets, finalSeatList, buyingTickets,confirmOrder);
     }
 
     private void reduceTickets( List<ConfirmOrderTicketReq> buyingTickets, DailyTrainTicket stockTickets) {

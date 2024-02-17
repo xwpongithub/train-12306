@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jiawa.train.common.exception.BusinessExceptionEnum;
 import com.jiawa.train.common.req.MemberTicketReq;
 import com.jiawa.train.common.resp.PageResp;
 import com.jiawa.train.common.toolkits.LogUtil;
