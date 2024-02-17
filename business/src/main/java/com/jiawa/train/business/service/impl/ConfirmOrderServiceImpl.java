@@ -5,9 +5,9 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.db.Entity;
-import cn.hutool.db.Session;
 import com.alibaba.fastjson2.JSON;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.ConfirmOrder;
 import com.jiawa.train.business.entity.DailyTrainSeat;
 import com.jiawa.train.business.entity.DailyTrainTicket;
@@ -15,6 +15,8 @@ import com.jiawa.train.business.enums.ConfirmOrderStatusEnum;
 import com.jiawa.train.business.enums.SeatColEnum;
 import com.jiawa.train.business.enums.SeatTypeEnum;
 import com.jiawa.train.business.mapper.ConfirmOrderMapper;
+import com.jiawa.train.business.mapper.DailyTrainSeatMapper;
+import com.jiawa.train.business.mapper.DailyTrainTicketMapper;
 import com.jiawa.train.business.req.ConfirmOrderDoReq;
 import com.jiawa.train.business.req.ConfirmOrderQueryReq;
 import com.jiawa.train.business.req.ConfirmOrderTicketReq;
@@ -30,7 +32,6 @@ import io.seata.spring.annotation.GlobalTransactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
 
@@ -42,10 +43,13 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
 
     @Override
     public PageResp<ConfirmOrderQueryResp> queryList(ConfirmOrderQueryReq req) {
-        var confirmOrderList =confirmOrderMapper.page(req.getPage(), req.getSize());
+        var q = Wrappers.<ConfirmOrder>lambdaQuery();
+        q.orderByDesc(ConfirmOrder::getId);
+        var p = new Page<ConfirmOrder>(req.getPage(),req.getSize());
+        var dbPage =confirmOrderMapper.selectPage(p,q);
         var resp = new PageResp<ConfirmOrderQueryResp>();
-        var list = BeanUtil.copyToList(confirmOrderList , ConfirmOrderQueryResp.class);
-        resp.setTotal(confirmOrderList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , ConfirmOrderQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
@@ -66,10 +70,6 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
         var buyingTickets = req.getTickets();
         LogUtil.debug("确认订单请求参数:{}",req);
 
-        Session session = Session.create();
-        try {
-            session.beginTransaction();
-
             // 1.数据校验（如：车次是否存在，余票是否存在，车次是否在有效期内，tickets的条数大于0，同乘客同车次是否已买过票）
             // 2.保存确认订单，状态置为I:初始化
             var confirmOrder = new ConfirmOrder();
@@ -85,10 +85,7 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             confirmOrder.setUpdateTime(now);
             confirmOrder.setTickets(JSON.toJSONString(buyingTickets));
 
-            Entity insertExample = Entity.create("public.confirm_order");
-            var insertMaps = BeanUtil.beanToMap(confirmOrder,true, true);
-            insertMaps.forEach(insertExample::set);
-            session.insert(insertExample);
+            confirmOrderMapper.insert(confirmOrder);
 
             // 3.查出余票记录，需要得到真实的库存
             var stockTickets = dailyTrainTicketService.selectByUnique(date,trainCode,start,end);
@@ -161,25 +158,6 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             // 6.1.2 修改余票详情表的余票数量
             // 6.1.3 为会员增加购票记录
             afterConfirmOrderService.afterDoConfirm(stockTickets, finalSeatList, buyingTickets,session);
-
-            // 7.更新确认订单表状态为S:成功
-            var confirmOrderForUpdate = new ConfirmOrder();
-            confirmOrderForUpdate.setId(confirmOrder.getId());
-            var orderUpdateExample = Entity.create("public.confirm_order");
-            //// 如果对接支付，这里变更状态应该先变为处理中，等待支付接口返回成功后订单状态才能变为SUCCESS，这里因为不做支付接口就直接将订单状态变为SUCCESS
-            orderUpdateExample.set("status",ConfirmOrderStatusEnum.SUCCESS.getCode())
-                    .set("update_time",now);
-            var orderUpdateWhereExample = Entity.create("public.confirm_order");
-            orderUpdateWhereExample.set("id", confirmOrder.getId());
-            session.update(orderUpdateExample,orderUpdateWhereExample);
-
-            session.commit();
-        } catch (SQLException e) {
-            session.quietRollback();
-            LogUtil.error(e);
-            throw e;
-        }
-
     }
 
     private void reduceTickets( List<ConfirmOrderTicketReq> buyingTickets, DailyTrainTicket stockTickets) {

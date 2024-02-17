@@ -3,6 +3,8 @@ package com.jiawa.train.business.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.DailyTrainSeat;
 import com.jiawa.train.business.mapper.DailyTrainSeatMapper;
 import com.jiawa.train.business.req.DailyTrainSeatQueryReq;
@@ -12,11 +14,11 @@ import com.jiawa.train.business.resp.DailyTrainSeatQueryResp;
 import com.jiawa.train.business.resp.SeatSellResp;
 import com.jiawa.train.business.service.IDailyTrainSeatService;
 import com.jiawa.train.common.resp.PageResp;
+import com.jiawa.train.common.toolkits.LogUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,28 +35,34 @@ public class DailyTrainSeatServiceImpl implements IDailyTrainSeatService {
         if (Objects.isNull(dailyTrainSeat.getId())) {
             dailyTrainSeat.setCreateTime(now);
             dailyTrainSeat.setUpdateTime(now);
-            dailyTrainSeatMapper.insertSelective(dailyTrainSeat);
+            dailyTrainSeatMapper.insert(dailyTrainSeat);
         } else {
             dailyTrainSeat.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id",req.getId());
-            dailyTrainSeatMapper.updateSelective(dailyTrainSeat,q);
+            dailyTrainSeatMapper.updateById(dailyTrainSeat);
         }
     }
 
     @Override
     public PageResp<DailyTrainSeatQueryResp> queryList(DailyTrainSeatQueryReq req) {
-        var trainList =dailyTrainSeatMapper.page(req.getPage(), req.getSize(),req.getTrainCode());
+        var q = Wrappers.<DailyTrainSeat>lambdaQuery();
+        q.orderByDesc(DailyTrainSeat::getDate)
+                .orderByAsc(DailyTrainSeat::getTrainCode,
+                        DailyTrainSeat::getCarriageIndex,
+                        DailyTrainSeat::getCarriageSeatIndex)
+                .eq(StrUtil.isNotBlank(req.getTrainCode()),DailyTrainSeat::getTrainCode,
+                        req.getTrainCode());
+        var p = new Page<DailyTrainSeat>(req.getPage(),req.getSize());
+        var dbPage =dailyTrainSeatMapper.selectPage(p,q);
         var resp = new PageResp<DailyTrainSeatQueryResp>();
-        var list = BeanUtil.copyToList(trainList , DailyTrainSeatQueryResp.class);
-        resp.setTotal(trainList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , DailyTrainSeatQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        dailyTrainSeatMapper.deleteByPrimaryKey(id);
+        dailyTrainSeatMapper.deleteById(id);
     }
 
     @Override
@@ -64,13 +72,11 @@ public class DailyTrainSeatServiceImpl implements IDailyTrainSeatService {
 
     @Override
     public int countSeat(Date date, String trainCode, String seatType) {
-        var q = new HashMap<String,Object>();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        if (StrUtil.isNotBlank(seatType)){
-            q.put("seat_type",seatType);
-        }
-        long l = dailyTrainSeatMapper.countExample(q);
+        var q = Wrappers.<DailyTrainSeat>lambdaQuery();
+        q.eq(DailyTrainSeat::getDate,date)
+                .eq(DailyTrainSeat::getTrainCode,trainCode)
+                .eq(StrUtil.isNotBlank(seatType),DailyTrainSeat::getSeatType,seatType);
+        long l = dailyTrainSeatMapper.selectCount(q);
         // 如果根本没有seatType对应的座位，则返回-1给前端，让前端对显示进行区分
         // -1表示没有此类型的座位,前端显示"-"
         // 0表示没有余票可卖，前端显示"无"
@@ -84,11 +90,12 @@ public class DailyTrainSeatServiceImpl implements IDailyTrainSeatService {
 
     @Override
     public List<DailyTrainSeat> selectByCarriage(Date date, String trainCode, Integer carriageIndex) {
-        var q = new HashMap<String,Object>();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        q.put("carriage_index",carriageIndex);
-        return dailyTrainSeatMapper.selectByExample(q);
+        var q = Wrappers.<DailyTrainSeat>lambdaQuery();
+        q.orderByAsc(DailyTrainSeat::getCarriageSeatIndex)
+                .eq(DailyTrainSeat::getDate,date)
+                .eq(DailyTrainSeat::getTrainCode,trainCode)
+                .eq(DailyTrainSeat::getCarriageIndex,carriageIndex);
+        return dailyTrainSeatMapper.selectList(q);
     }
 
     /**
@@ -96,12 +103,14 @@ public class DailyTrainSeatServiceImpl implements IDailyTrainSeatService {
      */
     @Override
     public List<SeatSellResp> querySeatSell(SeatSellReq req) {
-        var q = new HashMap<String,Object>();
         var date = req.getDate();
         var trainCode = req.getTrainCode();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        var list = dailyTrainSeatMapper.selectByExample(q);
+        LogUtil.debug("查询日期【{}】车次【{}】的座位销售信息", DateUtil.formatDate(date), trainCode);
+        var q = Wrappers.<DailyTrainSeat>lambdaQuery();
+        q.orderByAsc(DailyTrainSeat::getCarriageIndex,DailyTrainSeat::getCarriageSeatIndex)
+                .eq(DailyTrainSeat::getDate,date)
+                .eq(DailyTrainSeat::getTrainCode,trainCode);
+        var list = dailyTrainSeatMapper.selectList(q);
         return BeanUtil.copyToList(list, SeatSellResp.class);
     }
 

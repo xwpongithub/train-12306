@@ -2,6 +2,9 @@ package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.DailyTrainCarriage;
 import com.jiawa.train.business.enums.SeatColEnum;
 import com.jiawa.train.business.mapper.DailyTrainCarriageMapper;
@@ -24,8 +27,6 @@ public class DailyTrainCarriageServiceImpl implements IDailyTrainCarriageService
 
     private final DailyTrainCarriageMapper dailyTrainCarriageMapper;
 
-//    private final TrainCarriageService trainCarriageService;
-
     @Override
     public void save(DailyTrainCarriageSaveReq req) {
         var now = DateUtil.date();
@@ -38,28 +39,32 @@ public class DailyTrainCarriageServiceImpl implements IDailyTrainCarriageService
         if (Objects.isNull(dailyTrainCarriage.getId())) {
             dailyTrainCarriage.setCreateTime(now);
             dailyTrainCarriage.setUpdateTime(now);
-            dailyTrainCarriageMapper.insertSelective(dailyTrainCarriage);
+            dailyTrainCarriageMapper.insert(dailyTrainCarriage);
         } else {
             dailyTrainCarriage.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id", req.getId());
-            dailyTrainCarriageMapper.updateSelective(dailyTrainCarriage,q);
+            dailyTrainCarriageMapper.updateById(dailyTrainCarriage);
         }
     }
 
     @Override
     public PageResp<DailyTrainCarriageQueryResp> queryList(DailyTrainCarriageQueryReq req) {
-        var trainList = dailyTrainCarriageMapper.page(req.getPage(), req.getSize(),req.getDate(),req.getTrainCode());
+        var q = Wrappers.<DailyTrainCarriage>lambdaQuery();
+        q.orderByDesc(DailyTrainCarriage::getDate)
+                .orderByAsc(DailyTrainCarriage::getTrainCode,DailyTrainCarriage::getIndex)
+                .eq(Objects.nonNull(req.getDate()),DailyTrainCarriage::getDate,req.getDate())
+                .eq(StrUtil.isNotBlank(req.getTrainCode()),DailyTrainCarriage::getTrainCode,req.getTrainCode());
+        var p = new Page<DailyTrainCarriage>(req.getPage(),req.getSize());
+        var dbPage = dailyTrainCarriageMapper.selectPage(p,q);
         var resp = new PageResp<DailyTrainCarriageQueryResp>();
-        var list = BeanUtil.copyToList(trainList , DailyTrainCarriageQueryResp.class);
-        resp.setTotal(trainList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , DailyTrainCarriageQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        dailyTrainCarriageMapper.deleteByPrimaryKey(id);
+        dailyTrainCarriageMapper.deleteById(id);
     }
 
 //    @Transactional(rollbackFor = Exception.class)
@@ -87,11 +92,11 @@ public class DailyTrainCarriageServiceImpl implements IDailyTrainCarriageService
 
     @Override
     public List<DailyTrainCarriage> selectBySeatType(Date date, String trainCode, String seatType) {
-        var q = new HashMap<String,Object>();
-        q.put("date",date);
-        q.put("train_code",trainCode);
-        q.put("seat_type",seatType);
-        return dailyTrainCarriageMapper.selectByExample(q);
+        var q = Wrappers.<DailyTrainCarriage>lambdaQuery();
+        q.eq(DailyTrainCarriage::getDate,date)
+                .eq(DailyTrainCarriage::getTrainCode,trainCode)
+                .eq(DailyTrainCarriage::getSeatType,seatType);
+        return dailyTrainCarriageMapper.selectList(q);
     }
 
 

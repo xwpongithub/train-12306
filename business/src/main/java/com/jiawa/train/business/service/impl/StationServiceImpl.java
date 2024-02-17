@@ -2,6 +2,8 @@ package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.Station;
 import com.jiawa.train.business.mapper.StationMapper;
 import com.jiawa.train.business.req.StationQueryReq;
@@ -14,7 +16,6 @@ import com.jiawa.train.common.resp.PageResp;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,39 +37,42 @@ public class StationServiceImpl implements IStationService {
             }
             station.setCreateTime(now);
             station.setUpdateTime(now);
-            stationMapper.insertSelective(station);
+            stationMapper.insert(station);
         } else {
             station.setUpdateTime(now);
-            var queryMap = new HashMap<String,Object>();
-            queryMap.put("id", station.getId());
-            stationMapper.updateSelective(station,queryMap);
+            stationMapper.updateById(station);
         }
     }
 
     @Override
     public void delete(Long id) {
-       stationMapper.deleteByPrimaryKey(id);
+       stationMapper.deleteById(id);
     }
 
     @Override
     public PageResp<StationQueryResp> queryList(StationQueryReq req) {
-        var stationList = stationMapper.page(req.getPage(), req.getSize());
+        var q = Wrappers.<Station>lambdaQuery();
+        q.orderByDesc(Station::getId);
+        var p = new Page<Station>(req.getPage(),req.getSize());
+        var dbPage = stationMapper.selectPage(p,q);
         var resp = new PageResp<StationQueryResp>();
-        var list = BeanUtil.copyToList(stationList, StationQueryResp.class);
-        resp.setTotal(stationList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords(), StationQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public List<StationQueryResp> queryAll() {
-        var stationList = stationMapper.selectByExample(null);
+        var q = Wrappers.<Station>lambdaQuery();
+        q.orderByAsc(Station::getNamePy);
+        var stationList = stationMapper.selectList(q);
         return BeanUtil.copyToList(stationList, StationQueryResp.class);
     }
 
     private Station selectByUnique(String name) {
-        var q = new HashMap<String,Object>();
-        q.put("name",name);
+        var q = Wrappers.<Station>lambdaQuery();
+        q.eq(Station::getName,name);
         return stationMapper.selectOne(q);
     }
 

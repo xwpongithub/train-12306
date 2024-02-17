@@ -2,6 +2,9 @@ package com.jiawa.train.business.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.business.entity.TrainCarriage;
 import com.jiawa.train.business.enums.SeatColEnum;
 import com.jiawa.train.business.mapper.TrainCarriageMapper;
@@ -16,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,41 +45,45 @@ public class TrainCarriageServiceImpl implements ITrainCarriageService {
             }
             trainCarriage.setCreateTime(now);
             trainCarriage.setUpdateTime(now);
-            trainCarriageMapper.insertSelective(trainCarriage);
+            trainCarriageMapper.insert(trainCarriage);
         } else {
             trainCarriage.setUpdateTime(now);
-            var q = new HashMap<String,Object>();
-            q.put("id", req.getId());
-            trainCarriageMapper.updateSelective(trainCarriage,q);
+            trainCarriageMapper.updateById(trainCarriage);
         }
     }
 
     @Override
     public PageResp<TrainCarriageQueryResp> queryList(TrainCarriageQueryReq req) {
-        var trainCarriageList = trainCarriageMapper.page(req.getPage(), req.getSize(),req.getTrainCode());
+        var q = Wrappers.<TrainCarriage>lambdaQuery();
+        q
+                .eq(StrUtil.isNotBlank(req.getTrainCode()),TrainCarriage::getTrainCode,req.getTrainCode())
+                .orderByAsc(TrainCarriage::getTrainCode,TrainCarriage::getIndex);
+        var p = new Page<TrainCarriage>(req.getPage(),req.getSize());
+        var dbPage = trainCarriageMapper.selectPage(p,q);
         var resp = new PageResp<TrainCarriageQueryResp>();
-        var list = BeanUtil.copyToList(trainCarriageList , TrainCarriageQueryResp.class);
-        resp.setTotal(trainCarriageList.getTotal());
+        var list = BeanUtil.copyToList(dbPage.getRecords() , TrainCarriageQueryResp.class);
+        resp.setTotal((int)dbPage.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        trainCarriageMapper.deleteByPrimaryKey(id);
+        trainCarriageMapper.deleteById(id);
     }
 
     @Override
     public List<TrainCarriage> selectByTrainCode(String trainCode) {
-        var q = new HashMap<String,Object>();
-        q.put("train_code",trainCode);
-        return trainCarriageMapper.selectByExample(q);
+        var q = Wrappers.<TrainCarriage>lambdaQuery();
+        q.orderByAsc(TrainCarriage::getIndex)
+                .eq(TrainCarriage::getTrainCode, trainCode);
+        return trainCarriageMapper.selectList(q);
     }
 
     private TrainCarriage selectByUnique(String trainCode, Integer index) {
-        var q = new HashMap<String,Object>();
-        q.put("train_code",trainCode);
-        q.put("index",index);
+        var q = Wrappers.<TrainCarriage>lambdaQuery()
+                .eq(TrainCarriage::getTrainCode,trainCode)
+                .eq(TrainCarriage::getIndex,index);
         return trainCarriageMapper.selectOne(q);
     }
 

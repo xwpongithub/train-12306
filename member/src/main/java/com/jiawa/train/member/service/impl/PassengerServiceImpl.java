@@ -2,6 +2,8 @@ package com.jiawa.train.member.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jiawa.train.common.context.LoginMemberContext;
 import com.jiawa.train.common.resp.PageResp;
 import com.jiawa.train.member.entity.Passenger;
@@ -34,31 +36,36 @@ public class PassengerServiceImpl implements IPassengerService {
             passengerMapper.insert(passenger);
         } else {
             passenger.setUpdateTime(now);
-            passengerMapper.updateByPrimaryKey(passenger);
+            passengerMapper.updateById(passenger);
         }
     }
 
     @Override
     public PageResp<PassengerQueryResp> queryList(PassengerQueryReq req) {
+
+        var q = Wrappers.<Passenger>lambdaQuery();
         var memberId = req.getMemberId();
-        var passengerList = passengerMapper.pageByMember(req.getPage(), req.getSize(), memberId );
+        q.eq(Objects.nonNull(memberId),Passenger::getMemberId,memberId)
+                .orderByAsc(Passenger::getId);
+        var page = new Page<Passenger>(req.getPage(), req.getSize());
+        var pageData = passengerMapper.selectPage(page,q );
         var resp = new PageResp<PassengerQueryResp>();
-        var list = BeanUtil.copyToList(passengerList, PassengerQueryResp.class);
-        resp.setTotal(passengerList.getTotal());
+        var list = BeanUtil.copyToList(pageData.getRecords(), PassengerQueryResp.class);
+        resp.setTotal((int)pageData.getTotal());
         resp.setList(list);
         return resp;
     }
 
     @Override
     public void delete(Long id) {
-        passengerMapper.deleteByPrimaryKey(id);
+        passengerMapper.deleteById(id);
     }
 
     @Override
     public List<PassengerQueryResp> queryMine() {
-        var q = new HashMap<String,Object>();
-        q.put("member_id",LoginMemberContext.getId());
-        var list = passengerMapper.selectByExample(q);
+        var q = Wrappers.<Passenger>lambdaQuery();
+        q.eq(Passenger::getMemberId,LoginMemberContext.getId());
+        var list = passengerMapper.selectList(q);
         return BeanUtil.copyToList(list, PassengerQueryResp.class);
     }
 }
