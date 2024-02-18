@@ -34,10 +34,15 @@ import com.jiawa.train.common.resp.PageResp;
 import com.jiawa.train.common.toolkits.LogUtil;
 import com.jiawa.train.common.toolkits.SnowflakeUtil;
 import lombok.RequiredArgsConstructor;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -61,18 +66,37 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
     private final IDailyTrainTicketService dailyTrainTicketService;
     private final IDailyTrainCarriageService dailyTrainCarriageService;
     private final IDailyTrainSeatService dailyTrainSeatService;
+    private final RedissonClient redissonClient;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void doConfirmOrder(ConfirmOrderDoReq req) {
-        var now = DateUtil.date();
         var date = req.getDate();
         var trainCode = req.getTrainCode();
+        var now = DateUtil.date();
+        var lockKey = DateUtil.formatDate(date)+":"+trainCode;
+        RLock lock = null;
         var start = req.getStart();
         var end = req.getEndVal();
         var buyingTickets = req.getTickets();
         LogUtil.debug("确认订单请求参数:{}",req);
+        try {
+            lock = redissonClient.getLock(lockKey);
+            // 不带看门狗模式
+            // var tryLock = lock.tryLock(30, 0, TimeUnit.SECONDS);
+            // 带看门狗模式
+            var tryLock = lock.tryLock(0, TimeUnit.SECONDS);
+            if (tryLock) {
+                LogUtil.info("恭喜，抢到锁了！");
+            } else {
+                LogUtil.info("很遗憾，没抢到锁");
+                throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_LOCK_FAIL);
+            }
 
-            // 1.数据校验（如：车次是否存在，余票是否存在，车次是否在有效期内，tickets的条数大于0，同乘客同车次是否已买过票）
+            // 1.查出余票记录，需要得到真实的库存 数据校验（如：车次是否存在，余票是否存在，车次是否在有效期内，tickets的条数大于0，同乘客同车次是否已买过票）
+            var stockTickets = dailyTrainTicketService.selectByUnique(date, trainCode, start, end);
+            LogUtil.debug("日期{}下查出余票记录为{}", date, stockTickets);
+
             // 2.保存确认订单，状态置为I:初始化
             var confirmOrder = new ConfirmOrder();
             confirmOrder.setId(SnowflakeUtil.getSnowflakeId());
@@ -88,10 +112,6 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             confirmOrder.setTickets(JSON.toJSONString(buyingTickets));
 
             confirmOrderMapper.insert(confirmOrder);
-
-            // 3.查出余票记录，需要得到真实的库存
-            var stockTickets = dailyTrainTicketService.selectByUnique(date,trainCode,start,end);
-            LogUtil.debug("日期{}下查出余票记录为{}",date,stockTickets);
 
             // 4.预扣减余票数量并且判断余票是否充足
             reduceTickets(buyingTickets, stockTickets);
@@ -121,15 +141,15 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             } else {
                 // 计算偏移值
                 var colEnumList = SeatColEnum.getColsByType(firstTicket.getSeatTypeCode());
-                LogUtil.debug("本次选座的座位类型包含的列:{}",colEnumList);
+                LogUtil.debug("本次选座的座位类型包含的列:{}", colEnumList);
                 // 组成和前端两排选座一样的列表，用于做参照的作为列表，如：referSeatList = {A1,C1,D1,F1}
                 var referSeatList = CollUtil.<String>newArrayList();
                 for (int i = 1; i <= 2; i++) {
                     for (var seatColEnum : colEnumList) {
-                        referSeatList.add(seatColEnum.getCode()+i);
+                        referSeatList.add(seatColEnum.getCode() + i);
                     }
                 }
-                LogUtil.debug("用于做参照的两排座位:{}",referSeatList);
+                LogUtil.debug("用于做参照的两排座位:{}", referSeatList);
                 // 绝对偏移值，即：在参照作为列表中的位置
                 var absoluteOffsetList = CollUtil.<Integer>newArrayList();
                 for (var ticket : buyingTickets) {
@@ -137,13 +157,13 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
                     var index = referSeatList.indexOf(seat);
                     absoluteOffsetList.add(index);
                 }
-                LogUtil.debug("计算得到所有座位的绝对偏移值：{}",absoluteOffsetList);
+                LogUtil.debug("计算得到所有座位的绝对偏移值：{}", absoluteOffsetList);
                 var offsetList = CollUtil.<Integer>newArrayList();
                 for (var index : absoluteOffsetList) {
                     var offset = index - absoluteOffsetList.get(0);
                     offsetList.add(offset);
                 }
-                LogUtil.debug("计算得到座位的相对第一个座位的偏移值：{}",offsetList);
+                LogUtil.debug("计算得到座位的相对第一个座位的偏移值：{}", offsetList);
                 chooseSeat(
                         finalSeatList,
                         date,
@@ -154,18 +174,29 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
                         stockTickets.getStartIndex(),
                         stockTickets.getEndIndex());
             }
-            LogUtil.debug("最终选座:{}",finalSeatList);
+            LogUtil.debug("最终选座:{}", finalSeatList);
             // 6.选座后进行事务处理
             // 6.1.1 座位表修改售卖情况sell字段
             // 6.1.2 修改余票详情表的余票数量
             // 6.1.3 为会员增加购票记录
             // 6.1.4 更新订单状态
-            try{
+            try {
                 afterDoConfirm(stockTickets, finalSeatList, buyingTickets, confirmOrder);
-            } catch(Exception e){
+            } catch (Exception e) {
+                LogUtil.warn("保存购票信息失败");
                 LogUtil.error(e);
                 throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_EXCEPTION);
             }
+        } catch (InterruptedException e){
+            LogUtil.warn("购票异常");
+            LogUtil.error(e);
+        } finally {
+            LogUtil.info("购票流程结束，锁释放！");
+            // lock不为空且是当前的线程才能去删除锁
+            if (Objects.nonNull(lock) && lock.isHeldByCurrentThread()){
+                lock.unlock();
+            }
+        }
     }
 
 

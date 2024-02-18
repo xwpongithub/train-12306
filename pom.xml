@@ -27,6 +27,7 @@
         <postgresql.version>42.7.1</postgresql.version>
         <hutool.version>5.8.26</hutool.version>
         <freemarker.version>2.3.32</freemarker.version>
+        <redisson.version>3.26.1</redisson.version>
 
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
@@ -108,6 +109,19 @@
                 <groupId>org.freemarker</groupId>
                 <artifactId>freemarker</artifactId>
                 <version>${freemarker.version}</version>
+            </dependency>
+
+
+
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-data-21</artifactId>
+                <version>${redisson.version}</version>
             </dependency>
 
         </dependencies>
