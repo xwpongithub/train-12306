@@ -1,0 +1,2 @@
+一定要用dos窗口启动，而不是用power shell，不然会报错
+java -Dserver.port=18080 -Dcsp.sentinel.dashboard.server=localhost:18080 -Dproject.name=sentinel-dashboard -jar sentinel-dashboard-1.8.7.jar

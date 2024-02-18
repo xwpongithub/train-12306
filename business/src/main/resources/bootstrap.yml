@@ -12,3 +12,10 @@ spring:
       discovery:
         server-addr: 127.0.0.1:8848
         namespace: train
+    sentinel:
+      enabled: on
+      transport:
+        port: 8719
+        dashboard: localhost:18080
+        client-ip: 127.0.0.1
+      eager: on

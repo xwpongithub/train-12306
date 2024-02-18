@@ -5,6 +5,8 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -70,6 +72,7 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @SentinelResource(value="doConfirmOrder",blockHandler = "doConfirmBlock")
     public void doConfirmOrder(ConfirmOrderDoReq req) {
         var date = req.getDate();
         var trainCode = req.getTrainCode();
@@ -197,6 +200,12 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
                 lock.unlock();
             }
         }
+    }
+
+    public void doConfirmBlock(ConfirmOrderDoReq req, BlockException e) {
+        LogUtil.warn("请求被限流:{}",req);
+        LogUtil.error(e);
+        throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_FLOW_EXCEPTION);
     }
 
 
