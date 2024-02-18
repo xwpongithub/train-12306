@@ -74,6 +74,10 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
 
             // 1.数据校验（如：车次是否存在，余票是否存在，车次是否在有效期内，tickets的条数大于0，同乘客同车次是否已买过票）
             // 2.保存确认订单，状态置为I:初始化
+            var stockTickets = dailyTrainTicketService.selectByUnique(date,trainCode,start,end);
+            LogUtil.debug("日期{}下查出余票记录为{}",date,stockTickets);
+
+            // 3.保存确认订单，状态置为I:初始化
             var confirmOrder = new ConfirmOrder();
             confirmOrder.setId(SnowflakeUtil.getSnowflakeId());
             confirmOrder.setMemberId(LoginMemberContext.getId());
@@ -91,10 +95,6 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
             var insertMaps = BeanUtil.beanToMap(confirmOrder,true, true);
             insertMaps.forEach(insertExample::set);
             session.insert(insertExample);
-
-            // 3.查出余票记录，需要得到真实的库存
-            var stockTickets = dailyTrainTicketService.selectByUnique(date,trainCode,start,end);
-            LogUtil.debug("日期{}下查出余票记录为{}",date,stockTickets);
 
             // 4.预扣减余票数量并且判断余票是否充足
             reduceTickets(buyingTickets, stockTickets);
