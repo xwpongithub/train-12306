@@ -1,8 +1,0 @@
-server:
-  servlet:
-    context-path: /member
-spring:
-  application:
-    name: train-ticket-member
-  profiles:
-    active: dev
