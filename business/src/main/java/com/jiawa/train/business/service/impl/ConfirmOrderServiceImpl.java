@@ -72,7 +72,7 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @SentinelResource(value="doConfirmOrder",blockHandler = "doConfirmBlock")
+//    @SentinelResource(value="doConfirmOrder",blockHandler = "doConfirmBlock")
     public void doConfirmOrder(ConfirmOrderDoReq req) {
         var date = req.getDate();
         var trainCode = req.getTrainCode();
@@ -202,11 +202,11 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
         }
     }
 
-    public void doConfirmBlock(ConfirmOrderDoReq req, BlockException e) {
-        LogUtil.warn("请求被限流:{}",req);
-        LogUtil.error(e);
-        throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_FLOW_EXCEPTION);
-    }
+//    public void doConfirmBlock(ConfirmOrderDoReq req, BlockException e) {
+//        LogUtil.warn("请求被限流:{}",req);
+//        LogUtil.error(e);
+//        throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_FLOW_EXCEPTION);
+//    }
 
 
     private final MemberFeign memberFeign;

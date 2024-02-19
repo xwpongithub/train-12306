@@ -74,11 +74,16 @@
             <groupId>org.redisson</groupId>
             <artifactId>redisson-spring-data-21</artifactId>
         </dependency>
+        <!-- sentinel依赖 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+        </dependency>
+        <!-- sentinel依赖 end-->
 
     </dependencies>
 

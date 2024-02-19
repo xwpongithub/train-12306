@@ -21,17 +21,17 @@ public class BusinessApplication {
                 envs.getProperty("server.port"),
                 envs.getProperty("server.port"),
                 envs.getProperty("server.servlet.context-path"));
-        initFlowRules();
+//        initFlowRules();
     }
 
-    private static void initFlowRules() {
-        var rules = new ArrayList<FlowRule>();
-        var rule = new FlowRule();
-        rule.setResource("doConfirmOrder");
-        rule.setGrade(RuleConstant.FLOW_GRADE_QPS);
-        rule.setCount(1);
-        rules.add(rule);
-        FlowRuleManager.loadRules(rules);
-    }
+//    private static void initFlowRules() {
+//        var rules = new ArrayList<FlowRule>();
+//        var rule = new FlowRule();
+//        rule.setResource("doConfirmOrder");
+//        rule.setGrade(RuleConstant.FLOW_GRADE_QPS);
+//        rule.setCount(1);
+//        rules.add(rule);
+//        FlowRuleManager.loadRules(rules);
+//    }
 
 }
