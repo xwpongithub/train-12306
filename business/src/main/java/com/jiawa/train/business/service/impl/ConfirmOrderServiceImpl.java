@@ -22,10 +22,7 @@ import com.jiawa.train.business.req.ConfirmOrderDoReq;
 import com.jiawa.train.business.req.ConfirmOrderQueryReq;
 import com.jiawa.train.business.req.ConfirmOrderTicketReq;
 import com.jiawa.train.business.resp.ConfirmOrderQueryResp;
-import com.jiawa.train.business.service.IConfirmOrderService;
-import com.jiawa.train.business.service.IDailyTrainCarriageService;
-import com.jiawa.train.business.service.IDailyTrainSeatService;
-import com.jiawa.train.business.service.IDailyTrainTicketService;
+import com.jiawa.train.business.service.*;
 import com.jiawa.train.common.context.LoginMemberContext;
 import com.jiawa.train.common.exception.BusinessException;
 import com.jiawa.train.common.exception.BusinessExceptionEnum;
@@ -66,6 +63,7 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
     private final IDailyTrainTicketService dailyTrainTicketService;
     private final IDailyTrainCarriageService dailyTrainCarriageService;
     private final IDailyTrainSeatService dailyTrainSeatService;
+    private final ISkTokenService skTokenService;
     private final RedissonClient redissonClient;
 
     @Override
@@ -80,6 +78,16 @@ public class ConfirmOrderServiceImpl implements IConfirmOrderService {
         var end = req.getEndVal();
         var buyingTickets = req.getTickets();
         LogUtil.debug("确认订单请求参数:{}",req);
+
+         // 校验令牌余量
+         boolean validSkToken = skTokenService.validSkToken(date, trainCode, LoginMemberContext.getId());
+         if (validSkToken) {
+             LogUtil.info("令牌校验通过");
+         } else {
+             LogUtil.info("令牌校验不通过");
+             throw new BusinessException(BusinessExceptionEnum.CONFIRM_ORDER_SK_TOKEN_FAIL);
+         }
+
         try {
             lock = redissonClient.getLock(lockKey);
             // 不带看门狗模式

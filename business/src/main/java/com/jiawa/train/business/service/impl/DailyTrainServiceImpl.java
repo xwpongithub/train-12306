@@ -89,6 +89,7 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
     private final ITrainCarriageService trainCarriageService;
     private final ITrainSeatService trainSeatService;
     private final IDailyTrainSeatService dailyTrainSeatService;
+    private final ISkTokenService skTokenService;
 
     private final DailyTrainStationMapper dailyTrainStationMapper;
     private final DailyTrainCarriageMapper dailyTrainCarriageMapper;
@@ -133,6 +134,8 @@ public class DailyTrainServiceImpl implements IDailyTrainService {
         genDailyTrainSeatData(date,train.getCode());
         // 生成每日车次对应的余票信息
         genDailyTrainTicketData(date,train.getCode(),train.getType());
+        // 生成令牌余量数据
+        skTokenService.genDaily(date,train.getCode());
     }
 
     // 根据车次查询经过的所有车站

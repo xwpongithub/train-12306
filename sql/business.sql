@@ -380,7 +380,7 @@ DROP TABLE IF EXISTS sk_token;
 
 -- 创建表
 CREATE TABLE sk_token (
-                          id BIGSERIAL PRIMARY KEY,
+                          id BIGINT PRIMARY KEY,
                           date DATE NOT NULL,
                           train_code VARCHAR(20) NOT NULL,
                           count INT NOT NULL,
