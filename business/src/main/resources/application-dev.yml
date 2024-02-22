@@ -40,4 +40,7 @@ spring:
 #        nodes:
 #      ssl:
 #        enabled:
-
+rocketmq:
+  name-server: http://127.0.0.1:9876
+  producer:
+    group: default

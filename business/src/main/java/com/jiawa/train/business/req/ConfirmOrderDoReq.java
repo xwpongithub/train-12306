@@ -12,6 +12,10 @@ import java.util.List;
 @Data
 public class ConfirmOrderDoReq {
 
+    private Long memberId;
+    private String logId;
+    private String imageCodeToken;
+    private String imageCode;
     /**
      * 日期
      */

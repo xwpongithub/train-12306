@@ -1,24 +1,32 @@
 package com.jiawa.train.business.controller;
 
 import com.jiawa.train.business.req.ConfirmOrderDoReq;
-import com.jiawa.train.business.service.IConfirmOrderService;
+import com.jiawa.train.business.service.IBeforeConfirmOrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("confirm-order")
 public class ConfirmOrderController {
 
-  private final IConfirmOrderService confirmOrderService;
+  private final IBeforeConfirmOrderService confirmOrderService;
 
   @PostMapping("do")
-  public void doConfirmOrder(@Valid @RequestBody ConfirmOrderDoReq req) {
-      confirmOrderService.doConfirmOrder(req);
+  public Long doConfirmOrder(@Valid @RequestBody ConfirmOrderDoReq req) {
+     return confirmOrderService.beforeDoConfirmOrder(req);
   }
+
+@GetMapping("/query-line-count/{id}")
+public Integer queryLineCount(@PathVariable Long id) {
+    return confirmOrderService.queryLineCount(id);
+}
+
+
+    @GetMapping("/cancel/{id}")
+    public Integer cancel(@PathVariable Long id) {
+        return confirmOrderService.cancel(id);
+    }
 
 }
